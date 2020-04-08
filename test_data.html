@@ -1,0 +1,303 @@
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <meta charset="utf-8">
+                <meta http-equiv="X-UA-Compatible" content="IE=edge">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <title>Network Flow</title>
+            
+                <!-- jQuery Stuff -->
+                <script src="./js/jquery-3.4.1.js"></script>
+                <script src="./js/jquery.csv.js"></script>
+            
+                <!-- Mapbox GL -->
+                <script src='./js/mapbox-gl.js'></script>
+                <link href='./css/css/mapbox-gl.css' rel='stylesheet' />
+            
+                <!-- Utils -->
+                <script src="./js/latlon-geohash.js"></script>
+                <script src="https://api.tiles.mapbox.com/mapbox.js/plugins/turf/v2.0.0/turf.min.js"
+        charset="utf-8"
+        ></script>
+                <link href="https://api.mapbox.com/mapbox-gl-js/v1.8.1/mapbox-gl.css" rel="stylesheet" />
+                <style>
+                    body { margin: 0; padding: 0; }
+                    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+                </style>
+                </head>
+        <body>
+        <div id="map"></div>
+
+
+
+        <script>
+
+        mapboxgl.accessToken = 'pk.eyJ1IjoidmluYXlyMDcwOSIsImEiOiJjazdhNDR4ZHQwMXZrM2VwN2l4bHhxd3o1In0.lMkJsTCCuEgY2NcWh2HYww';
+        var geodata = {}
+        var map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/dark-v10',
+        center: [-103.59179687498357, 40.66995747013945],
+        zoom: 3
+        });
+
+        function fetchJSON(url) {
+          return fetch(url)
+            .then(function(response) {
+              return response.json();
+            });
+        }
+        geodata = fetchJSON('./res1.geojson')
+                .then(function(data) { return data })
+        console.log(geodata)
+
+        map.on('load', function() {
+            map.addSource('drop', {
+        type: 'geojson',
+        // Point to GeoJSON data. This example visualizes all M1.0+ demand
+        // from 12/22/15 to 1/21/16 as logged by USGS' Earthquake hazards program.
+        data:
+        './droplondon1.geojson',
+        cluster: true,
+        clusterMaxZoom: 14, // Max zoom to cluster points on
+        clusterRadius: 50 // Radius of each cluster when clustering points (defaults to 50)
+        });
+
+         map.addSource('peak', {
+        type: 'geojson',
+
+        data:
+        './pickup_london.geojson',
+        cluster: true,
+        clusterMaxZoom: 14, // Max zoom to cluster points on
+        clusterRadius: 50 // Radius of each cluster when clustering points (defaults to 50)
+        });
+
+
+        map.addSource('route', {
+        type : 'geojson',
+        data : './res1.geojson'
+        });
+        map.addLayer({
+            id: 'dropclusters',
+            type: 'circle',
+            source: 'drop',
+            filter: ['has', 'point_count'],
+            paint: {
+            // Use step expressions (https://docs.mapbox.com/mapbox-gl-js/style-spec/#expressions-step)
+            // with three steps to implement three types of circles:
+            //   * Blue, 20px circles when point count is less than 100
+            //   * Yellow, 30px circles when point count is between 100 and 750
+            //   * Pink, 40px circles when point count is greater than or equal to 750
+            'circle-color': [
+            'step',
+            ['get', 'point_count'],
+            '#d4af37',
+            100,
+            '#d4af37',
+            750,
+            '#d4af37'
+            ],
+            'circle-radius': [
+            'step',
+            ['get', 'point_count'],
+            20,
+            100,
+            30,
+            750,
+            40
+            ]
+            }
+            });
+            
+            map.addLayer({
+            id: 'peakclusters',
+            type: 'circle',
+            source: 'peak',
+            filter: ['==', 'cluster',true],
+            paint: {
+            // Use step expressions (https://docs.mapbox.com/mapbox-gl-js/style-spec/#expressions-step)
+            // with three steps to implement three types of circles:
+            //   * Blue, 20px circles when point count is less than 100
+            //   * Yellow, 30px circles when point count is between 100 and 750
+            //   * Pink, 40px circles when point count is greater than or equal to 750
+            'circle-color': [
+            'step',
+            ['get', 'point_count'],
+            '#97eed6',
+            100,
+            '#97eed6',
+            750,
+            '#97eed6'
+            ],
+            'circle-radius': [
+            'step',
+            ['get', 'point_count'],
+            20,
+            100,
+            30,
+            750,
+            40
+            ]
+            }
+            });
+          map.addLayer({
+              id : 'route',
+              type : 'line',
+              source : 'route',
+              'paint': {
+            'line-width': 0.3,
+        // Use a get expression (https://docs.mapbox.com/mapbox-gl-js/style-spec/#expressions-get)
+        // to set the line-color to a feature property value.
+            'line-color': 'red'
+              }
+
+          });
+            map.addLayer({
+            id: 'cluster-count-drop',
+            type: 'symbol',
+            source: 'drop',
+            filter: ['has', 'point_count'],
+            layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+            'text-size': 12,
+            "text-allow-overlap": true,
+            
+            }
+            });
+             map.addLayer({
+                    id: 'cluster_label',
+                    type: 'symbol',
+                    source: 'peak',
+                    filter: ['==', 'cluster',true],
+                    layout: {
+                        'text-field': '{point_count_abbreviated}',
+                        'text-font': ["Open Sans Semibold", "Arial Unicode MS Bold"],
+                        'text-size': 12,
+                    }
+                });
+            
+            
+            
+        // inspect a cluster on click
+        /*map.on('click', 'dropclusters', function(e) {
+        var features = map.queryRenderedFeatures(e.point, {
+        layers: ['dropclusters']
+        });
+        var clusterId = features[0].properties.cluster_id;
+        map.getSource('drop').getClusterExpansionZoom(
+        clusterId,
+        function(err, zoom) {
+        if (err) return;
+         
+        map.easeTo({
+        center: features[0].geometry.coordinates,
+        zoom: zoom
+        });
+        }
+        );
+        });
+        */
+
+        // inspect a cluster on click
+        // map.on('click', 'peakClusters', function(e) {
+        // var features = map.queryRenderedFeatures(e.point, {
+        // layers: ['peakClusters']
+        // });
+        // var clusterId = features[0].properties.cluster_id;
+        // map.getSource('peak').getClusterExpansionZoom(
+        // clusterId,
+        // function(err, zoom) {
+        // if (err) return;
+         
+        // map.easeTo({
+        // center: features[0].geometry.coordinates,
+        // zoom: zoom
+        // });
+        // }
+        // );
+        // });
+            
+            map.addLayer({
+            id: 'unclustered-point-peak',
+            type: 'circle',
+            source: 'peak',
+            filter: ['!', ['has', 'point_count']],
+            paint: {
+            'circle-color': '#51b4da',
+            'circle-radius': 4,
+            'circle-stroke-width': 1,
+            'circle-stroke-color': '#fff'
+            }
+            });
+
+
+          map.on('click', function(e) {
+            console.log('click', e.lngLat)
+    });
+
+  
+    //     document.getElementById('zoomto').addEventListener('click', function() {
+    // // Geographic coordinates of the LineString
+    // var coordinates = geojson.features[0].geometry.coordinates;
+     
+    // // Pass the first coordinates in the LineString to `lngLatBounds` &
+    // // wrap each coordinate pair in `extend` to include them in the bounds
+    // // result. A variation of this technique could be applied to zooming
+    // // to the bounds of multiple Points or Polygon geomteries - it just
+    // // requires wrapping all the coordinates with the extend method.
+    // var bounds = coordinates.reduce(function(bounds, coord) {
+    // return bounds.extend(coord);
+    // }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+     
+    // map.fitBounds(bounds, {
+    // padding: 20
+    // });
+    //});
+           
+        // map.on('click', function(e) {
+        //     console.log('clicked')
+        //     //var features = map.queryRenderedFeatures(e.point, { layers: ['route'] });
+        //     var features = map.querySourceFeatures('route')
+        //     console.log(features)
+        //     if (!features.length) {
+        //         return;
+        //     }
+        //     var routefeature = map.getLayer('selectedRoad')
+        //     console.log(map.getLayer('selectedRoad'))
+        //     if (typeof routefeature !== "undefined" ){         
+        //         map.removeLayer('selectedRoad')
+        //         map.removeSource('selectedRoad');   
+        //     }
+        //     var feature = features[0];
+        //     //I think you could add the vector tile feature to the map, but I'm more familiar with JSON
+        //     console.log(feature.toJSON());
+        //     map.addSource('selectedRoad', {
+        //         "type":"geojson",
+        //         "data": feature.toJSON()
+        //     });
+        //     map.addLayer({
+        //         "id": "selectedRoad",
+        //         "type": "line",
+        //         "source": "selectedRoad",
+        //         "layout": {
+        //             "line-join": "round",
+        //             "line-cap": "round"
+        //         },
+        //         "paint": {
+        //             "line-color": "yellow",
+        //             "line-width": 2
+        //         }
+        //     });
+        //     });
+        });
+
+
+            </script>
+
+
+
+
+        </body>
+        </html>
